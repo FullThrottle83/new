@@ -26,6 +26,7 @@ jobs:
         if: hashFiles('package.json') != ''
         run: |
           npm ci
-          npm run typecheck
-          npm run test -- --run
-          npm run build
+          ./node_modules/.bin/tsc --noEmit
+          ./node_modules/.bin/vitest run
+          ./node_modules/.bin/vite build
+          test -s dist/index.html

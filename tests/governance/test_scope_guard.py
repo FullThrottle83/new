@@ -2,6 +2,7 @@
 import importlib.util
 import pathlib
 import unittest
+from unittest import mock
 
 SCRIPT = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "scope_guard.py"
 SPEC = importlib.util.spec_from_file_location("scope_guard", SCRIPT)
@@ -54,6 +55,41 @@ class ScopeGuardTests(unittest.TestCase):
             ["scripts/scope_guard.py", "tasks/1.scope"],
         )
 
+
+    def test_issue_metadata_must_be_open_and_match(self):
+        guard.validate_issue_payload(1, {"number": 1, "state": "open"})
+        for payload in (
+            {"number": 1, "state": "closed"},
+            {"number": 2, "state": "open"},
+            {"number": 1, "state": "open", "pull_request": {}},
+            {"number": 1},
+            None,
+        ):
+            with self.subTest(payload=payload):
+                with self.assertRaises(guard.ScopeError):
+                    guard.validate_issue_payload(1, payload)
+
+    def test_issue_api_errors_fail_closed(self):
+        with self.assertRaises(guard.ScopeError):
+            guard.require_open_issue(1, "bad repository", "https://api.github.com", "token")
+        with self.assertRaises(guard.ScopeError):
+            guard.require_open_issue(1, "owner/repo", "http://api.github.com", "token")
+        with mock.patch.object(guard.urllib.request, "urlopen",
+                               side_effect=guard.urllib.error.URLError("offline")):
+            with self.assertRaises(guard.ScopeError):
+                guard.require_open_issue(1, "owner/repo", "https://api.github.com", "token")
+
+    def test_removing_tests_needs_exact_scope_not_subtree(self):
+        diff = b"D\0tests/game/swing.test.ts\0R100\0tests/game/old.test.ts\0tests/game/new.test.ts\0"
+        self.assertEqual(
+            guard.unauthorized_test_removals(diff, ["tests/game/**"]),
+            ["tests/game/old.test.ts", "tests/game/swing.test.ts"],
+        )
+        self.assertEqual(
+            guard.unauthorized_test_removals(
+                diff, ["tests/game/**", "tests/game/old.test.ts", "tests/game/swing.test.ts"]
+            ), [],
+        )
 
 if __name__ == "__main__":
     unittest.main()
