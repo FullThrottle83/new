@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import PurePosixPath
 
 CLOSING_REF = re.compile(r"\b(?:closes|fixes|resolves)\s+#([1-9]\d*)\b", re.IGNORECASE)
@@ -65,12 +68,12 @@ def is_allowed(path: str, rules: list[str]) -> bool:
     )
 
 
-def changed_paths(name_status: bytes) -> list[str]:
-    """Parse git diff --name-status -z; check BOTH old and new rename/copy paths."""
+def changed_entries(name_status: bytes) -> list[tuple[str, list[str]]]:
+    """Parse git diff --name-status -z without losing rename source paths."""
     chunks = name_status.decode("utf-8", errors="strict").split("\0")
     if chunks and chunks[-1] == "":
         chunks.pop()
-    paths: list[str] = []
+    entries: list[tuple[str, list[str]]] = []
     cursor = 0
     while cursor < len(chunks):
         status = chunks[cursor]
@@ -78,13 +81,59 @@ def changed_paths(name_status: bytes) -> list[str]:
         count = 2 if status.startswith(("R", "C")) else 1
         if not status or status[0] not in "ACDMRTUXB" or cursor + count > len(chunks):
             raise ScopeError(f"Malformed git diff status: {status!r}")
-        paths.extend(chunks[cursor:cursor + count])
+        entries.append((status, chunks[cursor:cursor + count]))
         cursor += count
-    return paths
+    return entries
+
+
+def changed_paths(name_status: bytes) -> list[str]:
+    return [path for _, paths in changed_entries(name_status) for path in paths]
+
+
+def unauthorized_test_removals(name_status: bytes, rules: list[str]) -> list[str]:
+    """A subtree scope cannot silently retire existing tests.
+
+    Deletions or renames of tests require an exact source-path rule on main.
+    """
+    removed: list[str] = []
+    for status, paths in changed_entries(name_status):
+        if status[0] in ("D", "R") and paths[0].startswith("tests/"):
+            if paths[0] not in rules:
+                removed.append(paths[0])
+    return sorted(set(removed))
 
 
 def evaluate(paths: list[str], rules: list[str]) -> list[str]:
     return sorted(set(path for path in paths if not is_allowed(path, rules)))
+
+
+def validate_issue_payload(number: int, payload: object) -> None:
+    if not isinstance(payload, dict) or payload.get("number") != number:
+        raise ScopeError("Issue API returned missing or mismatched issue metadata")
+    if "pull_request" in payload:
+        raise ScopeError(f"#{number} is a pull request, not a task issue")
+    if payload.get("state") != "open":
+        raise ScopeError(f"Task issue #{number} is not open")
+
+
+def require_open_issue(number: int, repository: str, api_url: str, token: str) -> None:
+    """Fetch task state with a read-only token; fail closed on API errors."""
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise ScopeError("Missing or invalid GITHUB_REPOSITORY")
+    if not api_url.startswith("https://") or not token:
+        raise ScopeError("Missing trusted GitHub API URL or read-only token")
+    endpoint = f"{api_url.rstrip('/')}/repos/{repository}/issues/{number}"
+    request = urllib.request.Request(endpoint, headers={
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "X-GitHub-Api-Version": "2022-11-28",
+    })
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = json.load(response)
+    except (urllib.error.URLError, ValueError, OSError) as exc:
+        raise ScopeError(f"Could not verify task issue #{number} via GitHub API") from exc
+    validate_issue_payload(number, payload)
 
 
 def git(*args: str, text: bool = False):
@@ -103,6 +152,8 @@ def main() -> int:
             event = json.load(event_file)
         pr = event.get("pull_request") or {}
         issue = issue_from_body(pr.get("body") or "")
+        require_open_issue(issue, os.getenv("GITHUB_REPOSITORY", ""),
+                           os.getenv("GITHUB_API_URL", ""), os.getenv("GH_TOKEN", ""))
         path = f"tasks/{issue}.scope"
         try:
             source = git("show", f"{args.base_sha}:{path}", text=True)
@@ -114,6 +165,10 @@ def main() -> int:
         paths = changed_paths(diff)
         if not paths:
             raise ScopeError("PR has no changed files")
+        removed_tests = unauthorized_test_removals(diff, rules)
+        if removed_tests:
+            raise ScopeError("Tests removed/renamed without exact base-branch scope:\n"
+                             + "\n".join(f"  - {p}" for p in removed_tests))
         violations = evaluate(paths, rules)
         if violations:
             raise ScopeError("Changed paths outside base scope:\n" + "\n".join(

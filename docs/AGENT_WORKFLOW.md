@@ -12,7 +12,7 @@ M0 and M1 are sequential. Use a core integrator for movement and grapple physics
 
 Hot paths: package manifest/lockfile, bootstrap and scene registry, input mapping, physics core, game-feel config, shared asset registries, tests infrastructure, CI and deployment config. Prefer per-scene assets and module-local data; minimize central edit points.
 
-Scope guard is a **diff policy, not a lock**. Task ownership is recorded in the issue/PR workflow and reviewed before dispatch. If overlaps occur, finish/integrate the earlier task or explicitly resequence; do not ask the agents to race.
+Scope guard checks that the referenced issue is open, but **open issue state does not prove the PR is assigned to that issue**. The maintainer must verify the issue-to-PR relationship, especially for broad scopes, and avoid simultaneous PRs claiming the same task. Do not reopen an old task without reviewing its stale scope. Scope guard is a **diff policy, not a lock**. Task ownership is recorded in the issue/PR workflow and reviewed before dispatch. If overlaps occur, finish/integrate the earlier task or explicitly resequence; do not ask the agents to race.
 
 ## Acceptance
 

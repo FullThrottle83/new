@@ -6,7 +6,7 @@ Governance files alone do not protect main. The GitHub connector used for bootst
 2. Require the relevant CI checks: Scope guard / scope and Quality / quality. Confirm exact names in Actions after first runs. Verify both checks actually gate the PR head; scope uses pull_request_target and should be tested with a harmless PR before treating it as enforcement.
 3. Do not enable automerge. CODEOWNERS routes review but the solo maintainer cannot approve their own PR; use a deliberate manual merge decision rather than an impossible approval requirement.
 4. Minimize bypass allowances. Keep Actions permissions read-only unless a future scoped issue requires more.
-5. Governance changes need separate review. Scope guard runs base-branch code through pull_request_target and never checks out or executes PR files. Quality runs PR code with read-only permissions and no repository secrets.
+5. An open issue reference and a path allowlist are not proof of task identity or semantic correctness. Confirm that each PR is actually assigned to the issue it closes. Do not treat user-settable labels as a security bypass. Avoid old broad scopes by reviewing them before reopening an issue. Governance changes need separate review. Scope guard runs base-branch code through pull_request_target and never checks out or executes PR files. Quality runs PR code with read-only permissions and no repository secrets.
 6. Do not configure Cloudflare deployment or production credentials in M0. Add deployment only after explicit approval.
 7. If merge queue is later enabled, required application checks must run on merge_group (the quality workflow already declares it).
 
