@@ -1,0 +1,9 @@
+# Maintainer-authorized governance hardening for issue #4.
+scripts/scope_guard.py
+tests/governance/test_scope_guard.py
+.github/workflows/scope-guard.yml
+.github/workflows/quality.yml
+docs/AGENT_WORKFLOW.md
+docs/QUALITY_GATES.md
+docs/REPOSITORY_SETUP.md
+tasks/README.md
