@@ -1,0 +1,12 @@
+# Issue #1 — minimal static game scaffold only.
+index.html
+package.json
+package-lock.json
+tsconfig.json
+vite.config.ts
+wrangler.jsonc
+.gitignore
+src/**
+public/**
+tests/game/**
+docs/LOCAL_DEVELOPMENT.md

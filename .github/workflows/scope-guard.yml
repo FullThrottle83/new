@@ -1,0 +1,39 @@
+name: Scope guard
+
+# Trusted policy: never check out or execute PR-supplied code in this workflow.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Test trusted scope parser
+        run: python3 -m unittest discover -s tests/governance -p 'test_*.py'
+
+      - name: Fetch PR commit without checking out its files
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "refs/pull/${PR_NUMBER}/head:refs/remotes/origin/scope-pr"
+
+      - name: Validate changed paths against base-branch scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/scope_guard.py \
+            --event "$GITHUB_EVENT_PATH" \
+            --base-sha "$BASE_SHA" \
+            --head-sha "$HEAD_SHA"

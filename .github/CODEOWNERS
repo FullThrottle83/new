@@ -1,0 +1,15 @@
+# Review routing, not a substitute for main-branch protection.
+* @FullThrottle83
+
+/AGENTS.md @FullThrottle83
+/CLAUDE.md @FullThrottle83
+/GEMINI.md @FullThrottle83
+/docs/ @FullThrottle83
+/tasks/ @FullThrottle83
+/scripts/ @FullThrottle83
+/.github/ @FullThrottle83
+/package.json @FullThrottle83
+/package-lock.json @FullThrottle83
+/tsconfig.json @FullThrottle83
+/vite.config.ts @FullThrottle83
+/wrangler.jsonc @FullThrottle83
