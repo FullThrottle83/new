@@ -1,0 +1,31 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test governance code
+        run: python3 -m unittest discover -s tests/governance -p 'test_*.py'
+      - name: Set up Node
+        if: hashFiles('package.json') != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install and validate application
+        if: hashFiles('package.json') != ''
+        run: |
+          npm ci
+          npm run typecheck
+          npm run test -- --run
+          npm run build
